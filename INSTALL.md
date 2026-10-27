@@ -52,7 +52,7 @@ Create each of these only if it doesn't exist. Never overwrite one.
   {
     "bot": "set-in-step-5",
     "routines": { "coding": "<repo>-agent", "supervisor": "<repo>-supervisor" },
-    "environments": { "coding": "<repo>-agent", "supervisor": "<repo>-supervisor" },
+    "environment": "<repo>-agent",
     "verify": "<command>",
     "retros": false
   }
@@ -115,10 +115,10 @@ gh secret set AGENT_APP_PRIVATE_KEY < <key file>
 
 Then delete the key file. `AGENTS_PAUSED` is the person's kill switch: setting it to `true` stops every agent run.
 
-## 7. Cloud environments (person)
+## 7. Cloud environment (person)
 
-These can't be created by an agent. Give the person the values for both environments, named as the config's
-`environments.coding` and `environments.supervisor`, from `docs/agents/cloud-routines.md` ("Environments"):
+One environment, which both routines use. It can't be created by an agent. Give the person its values, named as the
+config's `environment`, from `docs/agents/cloud-routines.md` ("Environment"):
 
 - **Network access:** one of these. Ask which the person prefers, and spell out the choice:
   - **Full**: simplest; agents can reach any host.
@@ -130,8 +130,6 @@ These can't be created by an agent. Give the person the values for both environm
 
   ```text
   AGENT_RUN=1
-  AGENT_RUNNER=cloud
-  AGENT_HARNESS=1
   GITHUB_AGENT_GIT_NAME=<slug>[bot]
   GITHUB_AGENT_GIT_EMAIL=<user id>+<slug>[bot]@users.noreply.github.com
   ```
@@ -141,13 +139,12 @@ These can't be created by an agent. Give the person the values for both environm
 
 Where to create them: open [claude.ai/code](https://claude.ai/code), select the environment selector (the first
 control in the row under the message box), then **New environment** at the bottom of its menu. Fill in the name,
-**Network access**, **Environment variables** and **Setup script** rows, then **Add environment**. Repeat for the
-second. ([Cloud environments docs](https://code.claude.com/docs/en/cloud-environments))
+**Network access**, **Environment variables** and **Setup script** rows, then **Add environment**. ([Cloud environments docs](https://code.claude.com/docs/en/cloud-environments))
 
 ## 8. Routines
 
 Two routines, as in `docs/agents/cloud-routines.md` ("Routines"): names from the config, this repository, no
-connectors, the environment of the same role, Opus, and the prompts given there. The supervisor's routine also runs
+connectors, the config's `environment`, Opus, and the prompts given there. The supervisor's routine also runs
 hourly. The coding routine runs weekly only if `retros` is on.
 
 If you have a tool that creates routines, create them with it; otherwise **(person)** creates them at

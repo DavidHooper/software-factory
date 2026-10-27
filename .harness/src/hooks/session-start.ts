@@ -34,7 +34,7 @@ if (agent.agentRun) {
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
       additionalContext: [
-        `This is an agent run (skill: ${agent.skill ?? 'unknown'}, runner: ${agent.runner ?? 'unknown'}, harness work: ${agent.harness}). Follow docs/agents/runners.md.`,
+        `This is an agent run (skill: ${agent.skill ?? 'unknown'}). Follow docs/agents/runners.md.`,
         cloud
           ? 'GitHub API calls in this cloud session act as the human who connected GitHub, so make every GitHub write (comments, PRs, reviews, labels) with `node .harness/src/cli/github-write.ts <METHOD> <path>`, which relays it to the bot ("Writing" in docs/agents/issue-tracker.md). Mark every comment with `<!-- agent -->`.'
           : hasAppCredentials && envFile

@@ -2,20 +2,20 @@
 
 The dispatcher fires a [Claude Code routine](https://code.claude.com/docs/en/routines) for each agent run,
 so the run appears as a session in the Claude app, where you can watch it and interject. This page is the
-reference for the environments and routines to create at
-[claude.ai/code/routines](https://claude.ai/code/routines). `.harness/setup-wizard.sh` walks through
-creating them.
+reference for the environment and routines to create at
+[claude.ai/code/routines](https://claude.ai/code/routines). `INSTALL.md` walks a person
+through creating them.
 
-## Environments
+## Environment
 
-Create two cloud environments, and use each only for its routines. Name them as the project's
-`harness.config.json` does: `environments.coding` and `environments.supervisor`.
+Create one cloud environment, named as the project's `harness.config.json` says (`environment`). Both routines
+run in it.
 
-| Setting               | `environments.coding`                                               | `environments.supervisor` |
-| --------------------- | ------------------------------------------------------------------- | ------------------------- |
-| Network access        | Full, or Custom: the default allowlist, plus `moonrepo.dev`, `nodejs.org` and the hosts the project needs | Same |
-| Environment variables | `AGENT_RUN=1`<br>`AGENT_RUNNER=cloud`<br>`AGENT_HARNESS=1`          | Same                      |
-| Setup script          | The contents of `.harness/cloud-setup.sh`                           | Same                      |
+| Setting               | Value                                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Network access        | Full, or Custom: the default allowlist, plus `moonrepo.dev`, `nodejs.org` and the hosts the project needs |
+| Environment variables | `AGENT_RUN=1`, and the bot's git identity ("GitHub identity")                                    |
+| Setup script          | The contents of `.harness/cloud-setup.sh`                                                                  |
 
 Nothing signs the harness supervisor's writes: agents are trusted (#161). The relay makes every agent's writes the
 same way, so the harness supervisor's writes need no key, and its memory between runs is its own plain comments
@@ -24,7 +24,7 @@ same way, so the harness supervisor's writes need no key, and its memory between
 The setup script installs the Node the harness pins in `.harness/.node-version`, and the moon version this
 project pins in `.prototools`. The image ships Node 22, and the SessionStart hooks need the pinned Node to run,
 so without the script `GH_TOKEN` isn't the bot's and the run state isn't set up. When either pin changes, paste
-the updated script into both environments (a test fails until the script matches).
+the updated script into the environment (a test fails until the script matches).
 
 ## Routines
 
@@ -39,8 +39,8 @@ Create two routines. Check each of these when you create one, since the form def
 
 | Routine name (short name)                    | Model | Environment               | Other triggers                         | GitHub secrets                                                       |
 | -------------------------------------------- | ----- | ------------------------- | -------------------------------------- | -------------------------------------------------------------------- |
-| `routines.coding` (`agent-harness`)          | Opus  | `environments.coding`     | Weekly, e.g. `0 23 * * 0` UTC (Monday) | `ROUTINE_AGENT_HARNESS_URL`, `ROUTINE_AGENT_HARNESS_TOKEN`           |
-| `routines.supervisor` (`harness-supervisor`) | Opus  | `environments.supervisor` | Hourly                                 | `ROUTINE_HARNESS_SUPERVISOR_URL`, `ROUTINE_HARNESS_SUPERVISOR_TOKEN` |
+| `routines.coding` (`agent-harness`)          | Opus  | `environment`             | Weekly, e.g. `0 23 * * 0` UTC (Monday) | `ROUTINE_AGENT_HARNESS_URL`, `ROUTINE_AGENT_HARNESS_TOKEN`           |
+| `routines.supervisor` (`harness-supervisor`) | Opus  | `environment`             | Hourly                                 | `ROUTINE_HARNESS_SUPERVISOR_URL`, `ROUTINE_HARNESS_SUPERVISOR_TOKEN` |
 
 Name each routine with the value of its key in `harness.config.json`. The dispatcher, its `ROUTINE_*` secrets and
 most docs use the short names in brackets. Every coding run (`/implement` and `/review-pr`) fires `agent-harness`, which also
@@ -97,9 +97,9 @@ tick and stop.
 
 ## GitHub identity
 
-Tested on 2026-10-20, in a session in the coding environment (the same holds in every environment):
+Tested on 2026-10-20, in a cloud session (the same holds in every environment):
 
-- **Commits are authored by the bot.** Set these in both environments, and the SessionStart hook applies them
+- **Commits are authored by the bot.** Set these in the environment, and the SessionStart hook applies them
   to every commit, with `<bot>` the config's `bot` and `<id>` the bot's user id
   (`gh api users/<bot>%5Bbot%5D --jq .id`):
 
