@@ -1,0 +1,13 @@
+{
+  "bot": "software-factory-agent",
+  "routines": {
+    "coding": "software-factory-agent",
+    "supervisor": "software-factory-supervisor"
+  },
+  "environments": {
+    "coding": "software-factory-agent",
+    "supervisor": "software-factory-supervisor"
+  },
+  "verify": "npm run verify",
+  "retros": true
+}

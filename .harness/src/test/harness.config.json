@@ -1,0 +1,13 @@
+{
+  "bot": "example-agent",
+  "routines": {
+    "coding": "example-coding",
+    "supervisor": "example-supervisor"
+  },
+  "environments": {
+    "coding": "example-coding-env",
+    "supervisor": "example-supervisor-env"
+  },
+  "verify": "npm run verify",
+  "retros": true
+}

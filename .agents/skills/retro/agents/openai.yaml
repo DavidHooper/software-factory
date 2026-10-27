@@ -1,0 +1,3 @@
+interface:
+  display_name: 'Retro'
+  short_description: 'Record what went wrong in a session'

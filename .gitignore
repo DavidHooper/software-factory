@@ -1,0 +1,4 @@
+node_modules/
+.agent-run/
+.claude/worktrees/
+.env

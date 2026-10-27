@@ -1,0 +1,248 @@
+name: Agent dispatch
+
+# Turns label, CI and close events into agent runs, and fires the
+# agent-harness cloud routine for each one. It merges and pauses nothing:
+# it wakes the harness supervisor routine for PRs that pass the merge gate
+# and for urgent events (agent-blocked added, a failed agent run, main going
+# red, a human's comment), and the harness supervisor merges or gets main
+# green.
+# The routing rules, the gate and the wakes live in
+# .harness/src/dispatch.ts and are documented in docs/agents/runners.md.
+on:
+  issues:
+    types: [labeled, closed]
+  # pull_request_target, not pull_request, so the workflow always comes from
+  # main: with pull_request GitHub uses the PR branch's copy, so older branches
+  # missed dispatcher changes, and a PR could change its own dispatch. This
+  # never runs the PR's code (every job runs main's), which is what makes
+  # pull_request_target safe here.
+  pull_request_target:
+    types: [opened, labeled]
+  # The CI workflow on agent PRs, so its completion can start the review run
+  # once all of the head commit's checks are green, or a second one once the
+  # first run's push turned them red (onCiCompleted).
+  workflow_run:
+    workflows: [Verify]
+    types: [completed]
+  # Any app's check finishing, the `Agent review` check included, so the
+  # harness supervisor hears of a PR once its last check finishes
+  # (onMergeCheck), and a finished review run whose push turned CI red starts
+  # the second (onCiCompleted). GitHub doesn't run
+  # workflows for check_run events on check suites Actions created
+  # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#check_run),
+  # so this can't trigger itself; the route job skips them too, in case.
+  check_run:
+    types: [completed]
+  # A person's comment on any issue or PR wakes the harness supervisor for
+  # it (urgentReasons); the route job drops bots' comments, so its own
+  # replies can't loop. issue_comment covers issue and PR conversation
+  # comments and always runs main's workflow. The review events have no
+  # _target variant: GitHub runs them from the PR's merge commit, and not at
+  # all while the PR has a merge conflict, when the hourly tick finds the
+  # review instead. The jobs check out main's code, but this file itself,
+  # its steps and that checkout included, comes from the PR: a PR that edits
+  # it runs its own copy, with this workflow's secrets, when a person
+  # reviews it.
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+# Two CI completions for one head commit (a re-run started just after the
+# first run finished, say), or a CI completion and the `Agent review` check
+# finishing, can arrive close together, and each may start a review run:
+# take them for a commit one at a time, so a later one sees the review an
+# earlier one started (onCiCompleted). A group keeps only one pending run and
+# cancels the one it replaces, which is safe because each of these events
+# starts the same runs from a fresh read of the PR and the group's last event
+# always runs. Other check_run events stay out of the group: they only wake
+# the harness supervisor (onMergeCheck), so a pending one that replaced a CI
+# run would lose the review that run should start (#83).
+# A review with inline comments sends one event per comment, plus the
+# review's own: a person's comment events for an item share a group too, so
+# they wake the harness supervisor once or twice, not once per comment. A
+# replaced pending one loses nothing, as each wakes it with the same reason.
+# Only the comments Route lets through (isHuman) join it: a bot's would
+# replace a person's pending event and then wake nothing.
+concurrency:
+  group: ${{ (github.event_name == 'workflow_run' || (github.event_name == 'check_run' && github.event.check_run.name == 'Agent review')) && format('agent-dispatch-ci-{0}', github.event.workflow_run.head_sha || github.event.check_run.head_sha) || (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association) && !endsWith(github.event.comment.user.login || github.event.review.user.login, '[bot]') && format('agent-dispatch-comment-{0}', github.event.issue.number || github.event.pull_request.number)) || format('agent-dispatch-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+permissions:
+  # Reads main's Verify runs (mainRuns in cli/github-facts.ts), to name the
+  # merge that broke main. Without it, those reads got HTTP 403 (#112).
+  actions: read
+  contents: read
+  # Reads each PR head's check runs, so a review starts only when every check is green (#25).
+  checks: read
+  issues: write
+  # Closes agent PRs whose issue was called off (see isAbandoned).
+  pull-requests: write
+
+jobs:
+  route:
+    name: Route
+    # Skips, before a runner starts (skipped jobs aren't billed), the events
+    # .harness/src/cli/dispatch.ts would end with no run, merge or wake.
+    # Each clause lets through at least what the code acts on, so
+    # dispatch.ts stays the decider; dispatch-workflow.test.ts checks the
+    # labels, conclusions and branch prefixes against it. When in doubt, let
+    # an event through: a missed merge or review costs more than a minute.
+    #  - issues: closed always (onIssueClosed, isAbandoned); labeled only for
+    #    agent-ready (onIssueLabeled) and agent-blocked (urgentReasons).
+    #  - pull_request_target: labeled only for needs-review (onPullLabeled)
+    #    and agent-blocked (urgentReasons); opened only on an agent branch
+    #    (isAbandoned).
+    #  - workflow_run: Verify pushed to main always (onMainVerified);
+    #    otherwise only with a PR on an agent branch (onCiCompleted,
+    #    onMergeCheck), since both act only on the run's pull_requests.
+    #  - check_run: never from github-actions (it can't trigger itself), and
+    #    only with a PR, since every path acts on its pull_requests: on an
+    #    agent branch (onCiCompleted, onMergeCheck), or on any branch for a
+    #    failed agent run's conclusion (urgentReasons).
+    #  - issue_comment and pull_request_review_comment created, and
+    #    pull_request_review submitted, only from a collaborator who isn't a
+    #    bot (urgentReasons, isHuman).
+    # The branch test is a prefix per Conventional Commits type, plus legacy
+    # claude/: a superset of isAgentBranch.
+    # Only one of the three refs is set for any event.
+    if: >-
+      (github.event_name == 'issues' && (github.event.action == 'closed' || (github.event.action == 'labeled' && contains(fromJSON('["agent-ready","agent-blocked"]'), github.event.label.name)))) ||
+      (github.event_name == 'pull_request_target' && github.event.action == 'labeled' && contains(fromJSON('["needs-review","agent-blocked"]'), github.event.label.name)) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Verify' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == github.event.repository.default_branch) ||
+      (github.event_name == 'check_run' && github.event.check_run.app.slug != 'github-actions' && github.event.check_run.pull_requests[0] != null && contains(fromJSON('["stale"]'), github.event.check_run.conclusion)) ||
+      (github.event_name == 'issue_comment' && github.event.action == 'created' && !endsWith(github.event.comment.user.login, '[bot]') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review_comment' && github.event.action == 'created' && !endsWith(github.event.comment.user.login, '[bot]') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && !endsWith(github.event.review.user.login, '[bot]') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association)) ||
+      (((github.event_name == 'pull_request_target' && github.event.action == 'opened') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0] != null) ||
+      (github.event_name == 'check_run' && github.event.check_run.app.slug != 'github-actions' && github.event.check_run.pull_requests[0] != null)) && (
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'feat/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'fix/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'docs/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'refactor/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'perf/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'test/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'build/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'ci/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'chore/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'revert/') ||
+      startsWith((github.event.pull_request.head.ref || github.event.workflow_run.head_branch || github.event.check_run.check_suite.head_branch), 'claude/')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      runs: ${{ steps.dispatch.outputs.runs }}
+      supervisor: ${{ steps.dispatch.outputs.supervisor }}
+    steps:
+      # Always run the dispatcher from the default branch, never from a PR's
+      # code.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      # The dispatcher only uses Node's standard library, so it needs only the
+      # Node the harness pins, not the project's toolchain (as in
+      # agent-relay.yml).
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .harness/.node-version
+      - id: dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The kill switch (docs/agents/runners.md): read only by the dispatcher.
+          AGENTS_PAUSED: ${{ vars.AGENTS_PAUSED }}
+          # Whether the harness supervisor routine is set up; until it is,
+          # the dispatcher notes that and wakes nothing.
+          SUPERVISOR_CONFIGURED: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_URL != '' && secrets.ROUTINE_HARNESS_SUPERVISOR_TOKEN != '' }}
+        run: node .harness/src/cli/dispatch.ts
+
+  cloud:
+    name: 'Cloud · ${{ matrix.run.skill }} #${{ matrix.run.number }}'
+    needs: route
+    if: needs.route.outputs.runs != '' && needs.route.outputs.runs != '[]'
+    runs-on: ubuntu-latest
+    # Room for a fire's retries, then the harness supervisor's (cli/fire-routine.ts).
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        run: ${{ fromJSON(needs.route.outputs.runs) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .harness
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .harness/.node-version
+      # Retries a busy routine API (429 or 5xx) with backoff before failing (#73).
+      - name: Fire the ${{ matrix.run.routine }} routine
+        id: fire
+        env:
+          ROUTINE_URL: ${{ secrets.ROUTINE_AGENT_HARNESS_URL }}
+          ROUTINE_TOKEN: ${{ secrets.ROUTINE_AGENT_HARNESS_TOKEN }}
+          RUN: ${{ toJSON(matrix.run) }}
+          WHAT: '${{ matrix.run.skill }} #${{ matrix.run.number }}'
+        run: |
+          if [ -z "$ROUTINE_URL" ] || [ -z "$ROUTINE_TOKEN" ]; then
+            echo "::error::The ROUTINE_AGENT_HARNESS_URL and _TOKEN secrets aren't set. See docs/agents/cloud-routines.md."
+            exit 1
+          fi
+          PAYLOAD=$(jq -c '{skill, number}' <<<"$RUN") node .harness/src/cli/fire-routine.ts
+
+      # The fire still failed, so no run started: wake the harness supervisor
+      # to restart it once the limit clears (a `fire-failed` reason).
+      - name: Wake the harness supervisor
+        if: failure() && steps.fire.outcome == 'failure'
+        env:
+          ROUTINE_URL: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_URL }}
+          ROUTINE_TOKEN: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_TOKEN }}
+          SUPERVISOR_CONFIGURED: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_URL != '' && secrets.ROUTINE_HARNESS_SUPERVISOR_TOKEN != '' }}
+          # The kill switch holds this wake back too (wakeSupervisor).
+          AGENTS_PAUSED: ${{ vars.AGENTS_PAUSED }}
+          FIRE_FAILED: ${{ toJSON(matrix.run) }}
+          WHAT: the harness-supervisor routine
+        run: node .harness/src/cli/fire-routine.ts
+
+      # Shows the run on GitHub: a check on the PR, or the issue's status
+      # comment, linking to the session (.harness/src/agent-status.ts).
+      # As the bot, because only the App that made a check can finish it.
+      - id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.AGENT_APP_ID }}
+          private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+      - name: Show the run as started
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          SKILL: ${{ matrix.run.skill }}
+          KIND: ${{ matrix.run.kind }}
+          NUMBER: ${{ matrix.run.number }}
+          RUN_URL: ${{ steps.fire.outputs.url }}
+        run: node .harness/src/cli/agent-status.ts
+
+  # Urgent events wake the harness supervisor (wakeSupervisor in dispatch.ts),
+  # which starts on the reasons in its payload. See docs/agents/cloud-routines.md.
+  supervisor:
+    name: Wake the harness supervisor
+    needs: route
+    if: needs.route.outputs.supervisor != ''
+    runs-on: ubuntu-latest
+    # Room for the fire's retries (cli/fire-routine.ts).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .harness
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .harness/.node-version
+      - name: Fire the harness-supervisor routine
+        env:
+          ROUTINE_URL: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_URL }}
+          ROUTINE_TOKEN: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_TOKEN }}
+          PAYLOAD: ${{ needs.route.outputs.supervisor }}
+          WHAT: the harness-supervisor routine
+        run: node .harness/src/cli/fire-routine.ts

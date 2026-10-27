@@ -1,0 +1,24 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Every main commit gets its own group, so a red main always shows (it wakes the
+# harness supervisor); a newer push cancels a PR's older run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run verify

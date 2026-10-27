@@ -1,0 +1,3 @@
+interface:
+  display_name: 'Review PR'
+  short_description: 'Review a PR and post one GitHub review'

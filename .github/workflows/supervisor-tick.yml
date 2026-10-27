@@ -1,0 +1,66 @@
+name: Supervisor tick
+
+# The tick: fire the harness supervisor for its hourly run, with no reasons.
+# The routine's hourly trigger can't read the kill switch (the cloud proxy
+# refuses Actions variables), so it fires this (/supervise, Start), which
+# reads it here. Nothing fires while the kill switch is on
+# or before the routine is set up. The decision is tick() in
+# .harness/src/supervisor-tick.ts, documented in docs/agents/runners.md
+# ("Waking the harness supervisor").
+on:
+  # No schedule: the routine's hourly trigger is the cadence, and the
+  # dispatcher wakes the supervisor on urgent events in between.
+  workflow_dispatch:
+
+# One tick at a time: a second waits for the first.
+concurrency:
+  group: supervisor-tick
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    name: Tick
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      supervisor: ${{ steps.tick.outputs.supervisor }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .harness
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .harness/.node-version
+      - id: tick
+        env:
+          # The kill switch (docs/agents/runners.md): paused, nothing is fired.
+          AGENTS_PAUSED: ${{ vars.AGENTS_PAUSED }}
+          # Whether the harness supervisor routine is set up; until it is,
+          # the tick notes that and fires nothing.
+          SUPERVISOR_CONFIGURED: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_URL != '' && secrets.ROUTINE_HARNESS_SUPERVISOR_TOKEN != '' }}
+        run: node .harness/src/cli/supervisor-tick.ts
+
+  supervisor:
+    name: Wake the harness supervisor
+    needs: tick
+    if: needs.tick.outputs.supervisor != ''
+    runs-on: ubuntu-latest
+    # Room for the fire's retries (cli/fire-routine.ts).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .harness
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .harness/.node-version
+      - name: Fire the harness-supervisor routine
+        env:
+          ROUTINE_URL: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_URL }}
+          ROUTINE_TOKEN: ${{ secrets.ROUTINE_HARNESS_SUPERVISOR_TOKEN }}
+          PAYLOAD: ${{ needs.tick.outputs.supervisor }}
+          WHAT: the harness-supervisor routine
+        run: node .harness/src/cli/fire-routine.ts

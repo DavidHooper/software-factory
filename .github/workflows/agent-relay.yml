@@ -1,0 +1,45 @@
+name: Agent relay
+
+# Makes GitHub writes as the agent bot on behalf of cloud agent runs, whose
+# own GitHub calls act as the human who connected GitHub. The runs send a
+# repository_dispatch event with .harness/src/cli/github-write.ts, each
+# carrying one REST write, which this makes as it was sent, except writes to
+# Actions variables, secrets or repository settings
+# (.harness/src/relay.ts). repository_dispatch always runs the workflow
+# from main, so a branch can't change that rule.
+on:
+  repository_dispatch:
+    types: [agent-relay]
+
+run-name: agent-relay ${{ github.event.client_payload.id }}
+
+permissions:
+  contents: read
+
+jobs:
+  relay:
+    name: Relay
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .harness
+            harness.config.json
+            .github/CODEOWNERS
+          sparse-checkout-cone-mode: false
+      # The relay scripts only use Node's standard library, so they need only
+      # the Node the harness pins, not the project's toolchain.
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .harness/.node-version
+      - id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.AGENT_APP_ID }}
+          private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+      - name: Make the write
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: node .harness/src/cli/relay-apply.ts

@@ -1,0 +1,12 @@
+{
+  "paths": [
+    ".harness/",
+    ".agents/skills/",
+    ".claude/settings.json",
+    ".claude/skills",
+    ".github/workflows/agent-dispatch.yml",
+    ".github/workflows/agent-relay.yml",
+    ".github/workflows/supervisor-tick.yml",
+    "docs/agents/"
+  ]
+}

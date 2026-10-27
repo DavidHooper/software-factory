@@ -1,0 +1,17 @@
+{
+  "name": "software-factory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --import ./.harness/src/test/setup.ts --test --test-reporter=dot '.harness/src/**/*.test.ts'",
+    "typecheck": "tsc -p .harness --noEmit",
+    "verify": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": "26.10.0"
+  }
+}
