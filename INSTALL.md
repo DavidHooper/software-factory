@@ -89,17 +89,15 @@ Create every label in `docs/agents/labels.md`'s tables, with its meaning as the 
 
 Each project gets its own App, installed only on its own repository.
 
-1. **(person)** Open the prefilled registration page and click **Create GitHub App**. With `<bot>` the config's
-   `bot` and `<owner>/<repo>` the project, the link is:
-
-   ```text
-   https://github.com/settings/apps/new?name=<bot>&url=https%3A%2F%2Fgithub.com%2F<owner>%2F<repo>&public=false&webhook_active=false&contents=write&issues=write&pull_requests=write&checks=write&actions=read&workflows=write&statuses=read
-   ```
-
-   For an organisation, start it with `https://github.com/organizations/<owner>/settings/apps/new` instead. Ask
-   them to check the permissions before creating: Contents, Issues, Pull requests, Checks and Workflows read and
-   write; Actions and Commit statuses read. (Don't use the manifest flow with a local HTML form: it failed on the
-   first install with `"url" wasn't supplied`.)
+1. **(person)** Walk the person through creating the App in chat, one step at a time, waiting for each:
+   1. Open **GitHub → Settings → Developer settings → GitHub Apps → New GitHub App** (for an organisation, the
+      organisation's **Settings → Developer settings → GitHub Apps**).
+   2. **GitHub App name:** the config's `bot`. **Homepage URL:** `https://github.com/<owner>/<repo>`.
+   3. **Webhook:** untick **Active**.
+   4. **Repository permissions:** Contents, Issues, Pull requests, Checks and Workflows **Read and write**;
+      Actions and Commit statuses **Read-only**. Leave the rest at **No access**.
+   5. **Where can this GitHub App be installed?** **Only on this account**.
+   6. Click **Create GitHub App**.
 2. **(person)** On the App's page, note the **App ID**, then **Generate a private key** and give you the path of
    the downloaded `.pem` file. Don't open or print it.
 3. **(person)** **Install App** → **Only select repositories** → this repository.
