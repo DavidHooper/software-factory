@@ -21,7 +21,7 @@ export interface AppManifest {
   url: string;
   public: false;
   redirect_url: string;
-  hook_attributes: { active: false };
+  hook_attributes: { url: string; active: false };
   default_permissions: typeof APP_PERMISSIONS;
 }
 
@@ -35,7 +35,9 @@ export function appManifest(opts: {
     url: opts.repoUrl,
     public: false,
     redirect_url: opts.redirectUrl,
-    hook_attributes: { active: false },
+    // GitHub requires a webhook URL even with the webhook off (its error is
+    // `"url" wasn't supplied`); inactive, it receives nothing.
+    hook_attributes: { url: opts.repoUrl, active: false },
     default_permissions: APP_PERMISSIONS,
   };
 }

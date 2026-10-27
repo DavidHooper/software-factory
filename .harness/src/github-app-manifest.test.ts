@@ -20,7 +20,7 @@ describe('appManifest', () => {
       url: 'https://github.com/example/repo',
       public: false,
       redirect_url: 'http://127.0.0.1:4567/callback',
-      hook_attributes: { active: false },
+      hook_attributes: { url: 'https://github.com/example/repo', active: false },
       default_permissions: APP_PERMISSIONS,
     });
   });
