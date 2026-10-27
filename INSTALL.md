@@ -143,13 +143,29 @@ control in the row under the message box), then **New environment** at the botto
 
 ## 8. Routines
 
-Two routines, as in `docs/agents/cloud-routines.md` ("Routines"): names from the config, this repository, no
-connectors, the config's `environment`, Opus, and the prompts given there. The supervisor's routine also runs
-hourly. The coding routine runs weekly only if `retros` is on.
+Two routines, named as the config's `routines.coding` and `routines.supervisor`, with the prompts in
+`docs/agents/cloud-routines.md` ("Routines"). Prefill as much as your tools allow, then hand the person only what's
+left. The API trigger's URL and token can only be made in the web form, so that part is always the person's.
 
-If you have a tool that creates routines, create them with it; otherwise **(person)** creates them at
-[claude.ai/code/routines](https://claude.ai/code/routines) ([routines docs](https://code.claude.com/docs/en/routines)). Either way, the dispatcher fires each one through its **API trigger**: **(person)** adds
-an API trigger to each routine, copies its URL and generates a token, and pastes both. Then:
+1. **Prefill them yourself** if you have a tool that creates routines (scheduled triggers), for example the
+   `create_trigger` and `list_environments` tools. For each routine set:
+   - **Name** and **prompt** as above, **model** Opus, **no connectors**.
+   - **Environment:** the config's `environment`. Find its id by listing environments; if you can't, leave it and
+     add it to the person's list below.
+   - **Schedule:** hourly for the supervisor; weekly (for example `7 23 * * 0`) for the coding routine, only if
+     `retros` is on. Turn push notifications on for the supervisor only.
+   - **Repository:** this one, if your tool can set it.
+   - Create them **switched off**, so nothing runs before the person has finished.
+2. **(person)** At [claude.ai/code/routines](https://claude.ai/code/routines), for each routine, open it → the menu
+   next to its name → **Edit**, and give them only the pieces still missing:
+   - **Advanced settings → Repository:** this repository (and **Cloud environment**, if you couldn't set it).
+   - **Trigger → + → API:** copy the **Fire URL**, then **Generate token** and copy the token (shown once).
+   - **Save changes**, and switch the routine on.
+
+   If you have no tool to create routines, they create each one with **New task** instead, with every value above
+   ([routines docs](https://code.claude.com/docs/en/routines)).
+3. **(person)** Sets the four secrets from the repository folder, pasting each value when `gh` prompts, so the
+   tokens never enter the conversation:
 
 ```bash
 gh secret set ROUTINE_AGENT_HARNESS_URL       # coding routine
@@ -158,7 +174,8 @@ gh secret set ROUTINE_HARNESS_SUPERVISOR_URL  # supervisor routine
 gh secret set ROUTINE_HARNESS_SUPERVISOR_TOKEN
 ```
 
-Pipe each value in from what the person pasted; don't put it on the command line.
+The first two are the coding routine's URL and token, the last two the supervisor's. Then check all four exist
+with `gh secret list`.
 
 ## 9. Branch protection (optional)
 
