@@ -120,8 +120,12 @@ Then delete the key file. `AGENTS_PAUSED` is the person's kill switch: setting i
 These can't be created by an agent. Give the person the values for both environments, named as the config's
 `environments.coding` and `environments.supervisor`, from `docs/agents/cloud-routines.md` ("Environments"):
 
-- **Network access:** Custom: the default allowlist, plus `nodejs.org` and `moonrepo.dev`, and anything the
-  project's own setup needs.
+- **Network access:** one of these. Ask which the person prefers, and spell out the choice:
+  - **Full**: simplest; agents can reach any host.
+  - **Custom**: tick **Also include default list of common package managers**, and in **Allowed domains** add `moonrepo.dev` (the setup script installs proto
+    from it), `nodejs.org` (proto downloads the pinned Node from it), and every host the project's own setup,
+    package manager and tests reach (for example a private registry, an API its tests call, or a toolchain's
+    download site). A host missing here fails the setup script or the agents' runs with a proxy error.
 - **Environment variables:**
 
   ```text
@@ -135,7 +139,10 @@ These can't be created by an agent. Give the person the values for both environm
 - **Setup script:** the contents of `.harness/cloud-setup.sh`, plus anything the project's toolchain needs (for
   example installing moon, if the project pins it in `.prototools`).
 
-They create them at claude.ai/code → Environments.
+Where to create them: open [claude.ai/code](https://claude.ai/code), select the environment selector (the first
+control in the row under the message box), then **New environment** at the bottom of its menu. Fill in the name,
+**Network access**, **Environment variables** and **Setup script** rows, then **Add environment**. Repeat for the
+second. ([Cloud environments docs](https://code.claude.com/docs/en/cloud-environments))
 
 ## 8. Routines
 
@@ -144,7 +151,7 @@ connectors, the environment of the same role, Opus, and the prompts given there.
 hourly. The coding routine runs weekly only if `retros` is on.
 
 If you have a tool that creates routines, create them with it; otherwise **(person)** creates them at
-claude.ai/code/routines. Either way, the dispatcher fires each one through its **API trigger**: **(person)** adds
+[claude.ai/code/routines](https://claude.ai/code/routines) ([routines docs](https://code.claude.com/docs/en/routines)). Either way, the dispatcher fires each one through its **API trigger**: **(person)** adds
 an API trigger to each routine, copies its URL and generates a token, and pastes both. Then:
 
 ```bash

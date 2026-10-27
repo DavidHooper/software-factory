@@ -13,7 +13,7 @@ Create two cloud environments, and use each only for its routines. Name them as 
 
 | Setting               | `environments.coding`                                               | `environments.supervisor` |
 | --------------------- | ------------------------------------------------------------------- | ------------------------- |
-| Network access        | Custom: the default allowlist, plus `moonrepo.dev` and `nodejs.org` | Same                      |
+| Network access        | Full, or Custom: the default allowlist, plus `moonrepo.dev`, `nodejs.org` and the hosts the project needs | Same |
 | Environment variables | `AGENT_RUN=1`<br>`AGENT_RUNNER=cloud`<br>`AGENT_HARNESS=1`          | Same                      |
 | Setup script          | The contents of `.harness/cloud-setup.sh`                           | Same                      |
 
