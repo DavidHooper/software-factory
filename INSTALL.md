@@ -111,9 +111,21 @@ Each project gets its own App, installed only on its own repository.
    }
    ```
 
-2. Write an HTML file with a form that posts the manifest (field `manifest`, the JSON as a string) to
-   `https://github.com/settings/apps/new` for a personal account, or
-   `https://github.com/organizations/<owner>/settings/apps/new` for an organisation, and a submit button.
+2. Write an HTML file with a form that posts the manifest to `https://github.com/settings/apps/new` for a
+   personal account, or `https://github.com/organizations/<owner>/settings/apps/new` for an organisation. Set the
+   manifest with a script, never in the input's `value` attribute: the JSON's quotes cut the attribute short, and
+   GitHub then reports `"url" wasn't supplied`.
+
+   ```html
+   <form action="https://github.com/settings/apps/new" method="post">
+     <input type="hidden" name="manifest" id="manifest">
+     <button type="submit">Create GitHub App</button>
+   </form>
+   <script>
+     document.getElementById('manifest').value = JSON.stringify(/* the manifest above */);
+   </script>
+   ```
+
    **(person)** Open the file in a browser, click the button, then **Create GitHub App**. GitHub redirects to the
    repository with `?code=…` in the address bar: paste the code back.
 3. Exchange it within the hour: `gh api -X POST app-manifests/<code>/conversions`. Keep `id`, `slug` and `pem` from
