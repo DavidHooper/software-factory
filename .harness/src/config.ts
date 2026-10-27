@@ -16,8 +16,8 @@ export interface HarnessConfig {
   bot: string;
   /** The cloud routines' names: one for coding runs, one for the harness supervisor. */
   routines: { coding: string; supervisor: string };
-  /** The cloud environments those routines run in. */
-  environments: { coding: string; supervisor: string };
+  /** The cloud environment both routines run in. */
+  environment: string;
   /** The command that checks the whole project, run from its root. */
   verify: string;
   /** Whether runs post retros and the weekly harness retro keeps a scorecard. Off unless set. */
@@ -45,7 +45,7 @@ export function parseConfig(text: string, source: string): HarnessConfig {
     typeof value === 'string' && value.trim() !== ''
       ? value
       : fail(key, 'a non-empty string', value);
-  const pair = (key: 'routines' | 'environments') => {
+  const pair = (key: 'routines') => {
     const value = isRecord(root[key])
       ? root[key]
       : fail(key, 'an object', root[key]);
@@ -58,7 +58,11 @@ export function parseConfig(text: string, source: string): HarnessConfig {
   return {
     bot: str(root.bot, 'bot'),
     routines: pair('routines'),
-    environments: pair('environments'),
+    // Older configs named an environment per routine; they are now one.
+    environment:
+      root.environment === undefined && isRecord(root.environments)
+        ? str(root.environments.coding, 'environments.coding')
+        : str(root.environment, 'environment'),
     verify: str(root.verify, 'verify'),
     retros:
       typeof retros === 'boolean'

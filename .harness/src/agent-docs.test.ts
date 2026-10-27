@@ -53,7 +53,7 @@ describe('harness files', () => {
     ...(owner ? [owner] : []),
     project.bot,
     ...Object.values(project.routines),
-    ...Object.values(project.environments),
+    project.environment,
   ];
   const harness = harnessFiles(REPO_ROOT).filter((file) =>
     lstatSync(join(REPO_ROOT, file)).isFile(),

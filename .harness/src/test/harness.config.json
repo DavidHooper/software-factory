@@ -4,10 +4,7 @@
     "coding": "example-coding",
     "supervisor": "example-supervisor"
   },
-  "environments": {
-    "coding": "example-coding-env",
-    "supervisor": "example-supervisor-env"
-  },
+  "environment": "example-env",
   "verify": "npm run verify",
   "retros": true
 }

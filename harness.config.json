@@ -4,10 +4,7 @@
     "coding": "software-factory-agent",
     "supervisor": "software-factory-supervisor"
   },
-  "environments": {
-    "coding": "software-factory-agent",
-    "supervisor": "software-factory-supervisor"
-  },
+  "environment": "software-factory-agent",
   "verify": "npm run verify",
   "retros": true
 }

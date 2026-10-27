@@ -84,7 +84,7 @@ A ticket's life:
 | `hooks/*`, `run-state.ts`, `session-env.ts`, `agent-env.ts`, `interjections.ts` | Session setup, run state and the interjection log ("Guardrails")                |
 | `github-app-token.ts`, `cli/gh-token.ts`                                        | Bot installation tokens                                                         |
 | `harness.config.json`, `config.ts`, `cli/config.ts`, `cli/verify.ts`            | The project's config, its reader, and the verify command ("Project config")     |
-| `.harness/setup-wizard.sh`, `.harness/cloud-setup.sh`                           | Human setup steps; the cloud environments' setup script                         |
+| `.harness/cloud-setup.sh`                                                       | The cloud environment's setup script (human setup is in `INSTALL.md`)          |
 | `.harness/manifest.json`, `manifest.ts`, `.harness/.node-version`               | Every path the harness owns, and the Node it runs on (`docs/agents/harness.md`) |
 
 GitHub-side state: the **Harness scorecard** (while `retros` is on) and the **Supervisor log**, issues found
@@ -101,7 +101,7 @@ with `node .harness/src/cli/config.ts <key>`.
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | `bot`                                            | The agent GitHub App's slug; its login, the author of agent comments, is `<bot>[bot]`       |
 | `routines.coding`, `routines.supervisor`         | The cloud routines (`docs/agents/cloud-routines.md`): `agent-harness`, `harness-supervisor` |
-| `environments.coding`, `environments.supervisor` | The cloud environments they run in                                                          |
+| `environment`                                    | The cloud environment both routines run in                                                  |
 | `verify`                                         | The command that checks the whole project; run it with `node .harness/src/cli/verify.ts`    |
 | `retros`                                         | Whether runs post retros (`/retro`); off when left out                                      |
 
@@ -209,16 +209,14 @@ Every agent run gets these. Skills and hooks read them, so behaviour doesn't dep
 | Variable        | Value                  | Meaning                                                                         |
 | --------------- | ---------------------- | ------------------------------------------------------------------------------- |
 | `AGENT_RUN`     | `1`                    | This is an agent run, not a human's own session                                 |
-| `AGENT_RUNNER`  | `cloud`                | Where the run executes                                                          |
 | `AGENT_SKILL`   | e.g. `implement`       | The skill being run                                                             |
-| `AGENT_HARNESS` | `1` or unset           | Harness files may change: set in both cloud environments, so in every cloud run |
 | `GH_TOKEN`      | bot installation token | The GitHub identity to use (see `docs/agents/issue-tracker.md`)                 |
 
 When `AGENT_RUN` is unset, you are in a human's interactive session.
 
-A cloud environment's variables are the same for every run, so cloud runs only get `AGENT_RUN`,
-`AGENT_RUNNER` and `AGENT_HARNESS`. Every coding run runs in the
-coding environment (`environments.coding` in `harness.config.json`). The skill comes from
+A cloud environment's variables are the same for every run, so cloud runs only get `AGENT_RUN`
+(and the bot's git identity). Every run, coding or supervisor, runs in the one environment (`environment` in
+`harness.config.json`). The skill comes from
 the dispatcher's payload, which the routine prompt passes on.
 
 In cloud runs the proxy applies your account to API calls, so agents make their GitHub writes through `github-write`, which relays

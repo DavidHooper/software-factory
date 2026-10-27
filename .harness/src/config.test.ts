@@ -15,7 +15,7 @@ import { describe, expect, fn, it } from './test/expect.ts';
 const valid = {
   bot: 'acme-agent',
   routines: { coding: 'acme-coding', supervisor: 'acme-supervisor' },
-  environments: { coding: 'acme-env', supervisor: 'acme-sup-env' },
+  environment: 'acme-env',
   verify: 'make check',
   retros: true,
 };
@@ -23,6 +23,15 @@ const valid = {
 describe('parseConfig', () => {
   it('reads every project-specific value from the file', () => {
     expect(parseConfig(JSON.stringify(valid), 'x.json')).toEqual(valid);
+  });
+
+  it('reads an older config with an environment per routine', () => {
+    const text = JSON.stringify({
+      ...valid,
+      environment: undefined,
+      environments: { coding: 'old-env', supervisor: 'old-sup-env' },
+    });
+    expect(parseConfig(text, 'x.json').environment).toBe('old-env');
   });
 
   it('leaves retros off when the file leaves it out', () => {
