@@ -1,9 +1,12 @@
 import {
   APP_PERMISSIONS,
+  MAX_APP_NAME,
   appManifest,
+  appName,
   convertCode,
   manifestPage,
   newAppUrl,
+  withBot,
 } from './github-app-manifest.ts';
 import { describe, expect, it } from './test/expect.ts';
 
@@ -82,5 +85,41 @@ describe('convertCode', () => {
     const refused = (() =>
       Promise.resolve(new Response('expired', { status: 404 }))) as typeof fetch;
     await expect(convertCode('abc', refused)).rejects.toThrow('(404): expired');
+  });
+});
+
+describe('appName', () => {
+  it('is <owner>-<repo>-agent when that fits', () => {
+    expect(appName('ExampleUser', 'widget-shop')).toBe(
+      'exampleuser-widget-shop-agent',
+    );
+  });
+
+  it('swaps the owner for a hash when it would be too long, and stays unique', () => {
+    const a = appName('a-very-long-organisation', 'platform');
+    const b = appName('another-long-organisation', 'platform');
+    expect(a).toMatch(/^platform-agent-[0-9a-f]{6}$/);
+    expect(a === b).toBe(false);
+  });
+
+  it('shortens a long repo name to fit', () => {
+    const name = appName('example', 'an-extraordinarily-long-repository-name');
+    expect(name.length <= MAX_APP_NAME).toBe(true);
+    expect(name).toMatch(/^an-extraordinarily-[a-z-]*-agent-[0-9a-f]{6}$|^an-extraordinarily[a-z-]*-agent-[0-9a-f]{6}$/);
+  });
+
+  it('only uses what GitHub keeps in a slug', () => {
+    expect(appName('Ex.Ample', 'My_Repo')).toBe('ex-ample-my-repo-agent');
+  });
+});
+
+describe('withBot', () => {
+  it('sets bot to the slug and keeps everything else', () => {
+    const text = '{"bot": "old", "verify": "npm test", "retros": true}';
+    expect(JSON.parse(withBot(text, 'new-agent'))).toEqual({
+      bot: 'new-agent',
+      verify: 'npm test',
+      retros: true,
+    });
   });
 });

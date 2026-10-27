@@ -8,29 +8,42 @@
 //
 // Usage: node .harness/src/cli/create-app.ts <owner>/<repo> <key-out> [--org]
 //   --org   the owner is an organisation (the App is created there)
-// The App's name is harness.config.json's `bot`.
+//   --name  the App's name; by default appName(): `<owner>-<repo>-agent`,
+//           shortened to fit GitHub's 34 characters
+// App names are global, so GitHub may refuse the name; the person can change
+// it on GitHub's page. Either way, the config's `bot` is set to the App's
+// slug once it's created.
 import { execFile } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
-import { config } from '../config.ts';
+import { configPath } from '../config.ts';
 import {
   appManifest,
+  appName,
   convertCode,
   escapeHtml,
   manifestPage,
   newAppUrl,
+  withBot,
 } from '../github-app-manifest.ts';
 
-const [repo, keyOut] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-const org = process.argv.includes('--org');
+const args = process.argv.slice(2);
+const flag = (name: string) => {
+  const at = args.indexOf(name);
+  return at === -1 ? undefined : args.splice(at, 2)[1];
+};
+const name = flag('--name');
+const org = args.includes('--org');
+const [repo, keyOut] = args.filter((a) => !a.startsWith('--'));
 if (!repo?.includes('/') || !keyOut) {
   console.error(
-    'Usage: node .harness/src/cli/create-app.ts <owner>/<repo> <key-out> [--org]',
+    'Usage: node .harness/src/cli/create-app.ts <owner>/<repo> <key-out> [--org] [--name <name>]',
   );
   process.exit(2);
 }
-const owner = repo.split('/')[0]!;
+const [owner, repoName] = repo.split('/') as [string, string];
+const appTitle = name ?? appName(owner, repoName);
 const keyPath = resolve(keyOut);
 
 function openBrowser(url: string): void {
@@ -48,7 +61,7 @@ const server = createServer((req, res) => {
   const port = (server.address() as { port: number }).port;
   if (url.pathname === '/') {
     const manifest = appManifest({
-      name: config.bot,
+      name: appTitle,
       repoUrl: `https://github.com/${repo}`,
       redirectUrl: `http://127.0.0.1:${port}/callback`,
     });
@@ -64,6 +77,8 @@ const server = createServer((req, res) => {
   convertCode(code).then(
     (app) => {
       writeFileSync(keyPath, app.pem, { mode: 0o600 });
+      const cfg = configPath();
+      writeFileSync(cfg, withBot(readFileSync(cfg, 'utf8'), app.slug));
       const installUrl = `https://github.com/apps/${app.slug}/installations/new`;
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       res.end(

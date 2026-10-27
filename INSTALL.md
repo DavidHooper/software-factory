@@ -45,11 +45,12 @@ version and the new one. An upgrade never touches project-owned files (step 3).
 
 Create each of these only if it doesn't exist. Never overwrite one.
 
-- **`harness.config.json`** at the repository root. Ask the person for the names (offer the defaults):
+- **`harness.config.json`** at the repository root. Step 5 sets `bot` to the App it creates. Ask the person for
+  the other names (offer the defaults):
 
   ```json
   {
-    "bot": "<repo>-agent",
+    "bot": "set-in-step-5",
     "routines": { "coding": "<repo>-agent", "supervisor": "<repo>-supervisor" },
     "environments": { "coding": "<repo>-agent", "supervisor": "<repo>-supervisor" },
     "verify": "<command>",
@@ -91,12 +92,15 @@ Each project gets its own App, installed only on its own repository. This runs o
 their browser.
 
 1. Run `node .harness/src/cli/create-app.ts <owner>/<repo> <key file>` (add `--org` if the owner is an
-   organisation), with `<key file>` a path outside the repository, such as `~/.config/<bot>.pem`. It opens a page
-   in the browser and waits.
-2. **(person)** On that page, click **Continue to GitHub**. GitHub shows the App, named as the config's `bot`,
-   with its permissions filled in: Contents, Issues, Pull requests, Checks and Workflows read and write; Actions
-   and Commit statuses read. They click **Create GitHub App**, and GitHub sends them back to the page.
-3. The command prints `{"id", "slug", "keyPath", "installUrl"}` and writes the private key to `<key file>`. Don't
+   organisation), with `<key file>` a path outside the repository, such as `~/.config/<owner>-<repo>-agent.pem`.
+   It names the App `<owner>-<repo>-agent`, shortened to fit GitHub's 34 characters, opens a page in the browser
+   and waits.
+2. **(person)** On that page, click **Continue to GitHub**. GitHub shows the App with its permissions filled in:
+   Contents, Issues, Pull requests, Checks and Workflows read and write; Actions and Commit statuses read. They
+   click **Create GitHub App**, and GitHub sends them back to the page. App names are unique across GitHub: if it
+   says the name is taken, they change it in the name field there and create it.
+3. The command prints `{"id", "slug", "keyPath", "installUrl"}`, writes the private key to `<key file>`, and sets
+   `bot` in `harness.config.json` to the App's slug. Don't
    open or print the key. If it prints an error instead (the code expired, or GitHub refused it), run it again.
 4. **(person)** Open `installUrl`, choose **Only select repositories**, pick this repository, and install.
 5. Look up the bot's user id for step 7: `gh api 'users/<slug>[bot]' --jq .id`.
