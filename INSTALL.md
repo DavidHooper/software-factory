@@ -87,23 +87,18 @@ Create every label in `docs/agents/labels.md`'s tables, with its meaning as the 
 
 ## 5. The bot's GitHub App (first install only)
 
-Each project gets its own App, installed only on its own repository.
+Each project gets its own App, installed only on its own repository. This runs on the person's machine: it opens
+their browser.
 
-1. **(person)** Open the prefilled registration page and click **Create GitHub App**. With `<bot>` the config's
-   `bot` and `<owner>/<repo>` the project, the link is:
-
-   ```text
-   https://github.com/settings/apps/new?name=<bot>&url=https%3A%2F%2Fgithub.com%2F<owner>%2F<repo>&public=false&webhook_active=false&contents=write&issues=write&pull_requests=write&checks=write&actions=read&workflows=write&statuses=read
-   ```
-
-   For an organisation, start it with `https://github.com/organizations/<owner>/settings/apps/new` instead. Ask
-   them to check the permissions before creating: Contents, Issues, Pull requests, Checks and Workflows read and
-   write; Actions and Commit statuses read. (Don't use the manifest flow with a local HTML form: it failed on the
-   first install with `"url" wasn't supplied`.)
-2. **(person)** On the App's page, note the **App ID**, then **Generate a private key** and give you the path of
-   the downloaded `.pem` file. Don't open or print it.
-3. **(person)** **Install App** → **Only select repositories** → this repository.
-4. Read the App's slug from its page URL (`https://github.com/settings/apps/<slug>`), or ask.
+1. Run `node .harness/src/cli/create-app.ts <owner>/<repo> <key file>` (add `--org` if the owner is an
+   organisation), with `<key file>` a path outside the repository, such as `~/.config/<bot>.pem`. It opens a page
+   in the browser and waits.
+2. **(person)** On that page, click **Continue to GitHub**. GitHub shows the App, named as the config's `bot`,
+   with its permissions filled in: Contents, Issues, Pull requests, Checks and Workflows read and write; Actions
+   and Commit statuses read. They click **Create GitHub App**, and GitHub sends them back to the page.
+3. The command prints `{"id", "slug", "keyPath", "installUrl"}` and writes the private key to `<key file>`. Don't
+   open or print the key. If it prints an error instead (the code expired, or GitHub refused it), run it again.
+4. **(person)** Open `installUrl`, choose **Only select repositories**, pick this repository, and install.
 5. Look up the bot's user id for step 7: `gh api 'users/<slug>[bot]' --jq .id`.
 
 ## 6. Actions variables and secrets
@@ -111,10 +106,10 @@ Each project gets its own App, installed only on its own repository.
 ```bash
 gh variable set AGENT_APP_ID --body "<id>"
 gh variable set AGENTS_PAUSED --body false
-gh secret set AGENT_APP_PRIVATE_KEY < <pem file>
+gh secret set AGENT_APP_PRIVATE_KEY < <key file>
 ```
 
-Then delete the `pem` file. `AGENTS_PAUSED` is the person's kill switch: setting it to `true` stops every agent run.
+Then delete the key file. `AGENTS_PAUSED` is the person's kill switch: setting it to `true` stops every agent run.
 
 ## 7. Cloud environments (person)
 
