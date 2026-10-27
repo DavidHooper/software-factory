@@ -89,49 +89,21 @@ Create every label in `docs/agents/labels.md`'s tables, with its meaning as the 
 
 Each project gets its own App, installed only on its own repository.
 
-1. Write this manifest, with `<bot>` the config's `bot` and `<owner>/<repo>` the project:
+1. **(person)** Open the prefilled registration page and click **Create GitHub App**. With `<bot>` the config's
+   `bot` and `<owner>/<repo>` the project, the link is:
 
-   ```json
-   {
-     "name": "<bot>",
-     "url": "https://github.com/<owner>/<repo>",
-     "public": false,
-     "redirect_url": "https://github.com/<owner>/<repo>",
-     "hook_attributes": { "active": false },
-     "default_permissions": {
-       "contents": "write",
-       "issues": "write",
-       "pull_requests": "write",
-       "checks": "write",
-       "actions": "read",
-       "workflows": "write",
-       "statuses": "read",
-       "metadata": "read"
-     }
-   }
+   ```text
+   https://github.com/settings/apps/new?name=<bot>&url=https%3A%2F%2Fgithub.com%2F<owner>%2F<repo>&public=false&webhook_active=false&contents=write&issues=write&pull_requests=write&checks=write&actions=read&workflows=write&statuses=read
    ```
 
-2. Write an HTML file with a form that posts the manifest to `https://github.com/settings/apps/new` for a
-   personal account, or `https://github.com/organizations/<owner>/settings/apps/new` for an organisation. Set the
-   manifest with a script, never in the input's `value` attribute: the JSON's quotes cut the attribute short, and
-   GitHub then reports `"url" wasn't supplied`.
-
-   ```html
-   <form action="https://github.com/settings/apps/new" method="post">
-     <input type="hidden" name="manifest" id="manifest">
-     <button type="submit">Create GitHub App</button>
-   </form>
-   <script>
-     document.getElementById('manifest').value = JSON.stringify(/* the manifest above */);
-   </script>
-   ```
-
-   **(person)** Open the file in a browser, click the button, then **Create GitHub App**. GitHub redirects to the
-   repository with `?code=…` in the address bar: paste the code back.
-3. Exchange it within the hour: `gh api -X POST app-manifests/<code>/conversions`. Keep `id`, `slug` and `pem` from
-   the response. Save the `pem` to a file outside the repository, readable only by you.
-4. **(person)** Open `https://github.com/apps/<slug>/installations/new`, choose **Only select repositories**, pick
-   this repository, and install.
+   For an organisation, start it with `https://github.com/organizations/<owner>/settings/apps/new` instead. Ask
+   them to check the permissions before creating: Contents, Issues, Pull requests, Checks and Workflows read and
+   write; Actions and Commit statuses read. (Don't use the manifest flow with a local HTML form: it failed on the
+   first install with `"url" wasn't supplied`.)
+2. **(person)** On the App's page, note the **App ID**, then **Generate a private key** and give you the path of
+   the downloaded `.pem` file. Don't open or print it.
+3. **(person)** **Install App** → **Only select repositories** → this repository.
+4. Read the App's slug from its page URL (`https://github.com/settings/apps/<slug>`), or ask.
 5. Look up the bot's user id for step 7: `gh api 'users/<slug>[bot]' --jq .id`.
 
 ## 6. Actions variables and secrets
