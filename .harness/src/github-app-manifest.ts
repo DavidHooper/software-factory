@@ -4,6 +4,41 @@
 // redirects back with a code, and the code is exchanged for the App's ID, slug
 // and private key. cli/create-app.ts runs it; INSTALL.md step 5 says when.
 
+import { createHash } from 'node:crypto';
+
+/** GitHub's limit on an App's name. */
+export const MAX_APP_NAME = 34;
+
+/**
+ * A name for the project's App. App names are global across GitHub, so the
+ * owner goes in to keep it unique: `<owner>-<repo>-agent`. When that's over
+ * GitHub's 34 characters, a short hash of `<owner>/<repo>` stands in for the
+ * owner, and the repo is shortened if it must be: `<repo>-agent-<hash>`.
+ */
+export function appName(owner: string, repo: string): string {
+  const slug = (text: string) =>
+    text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const full = `${slug(owner)}-${slug(repo)}-agent`;
+  if (full.length <= MAX_APP_NAME) {
+    return full;
+  }
+  const hash = createHash('sha256')
+    .update(`${owner}/${repo}`.toLowerCase())
+    .digest('hex')
+    .slice(0, 6);
+  const suffix = `-agent-${hash}`;
+  const short = slug(repo)
+    .slice(0, MAX_APP_NAME - suffix.length)
+    .replace(/-$/, '');
+  return `${short}${suffix}`;
+}
+
+/** Sets the config's `bot` to the App's slug, keeping the rest of the file. */
+export function withBot(configText: string, slug: string): string {
+  const parsed = JSON.parse(configText) as Record<string, unknown>;
+  return `${JSON.stringify({ ...parsed, bot: slug }, null, 2)}\n`;
+}
+
 /** The repository permissions the harness's workflows and relay use. */
 export const APP_PERMISSIONS = {
   contents: 'write',
